@@ -11,9 +11,10 @@ We picked this challenge as a project for the TU Delft course Seminar Computer V
 ## Running code on Kaggle
 
 - Run the included Python script: `python push_to_kaggle.py`
-- **Important**: Only code in the `scv_notebook.ipynb` notebook is automatically executed on Kaggle. If one of the cells errors, the cells below are not executed. Utility functions can (only) be defined in the `scv_utility.py` script and can be imported in the notebook.
+- **Important**: Only code in the `scv_notebook.ipynb` notebook is automatically executed on Kaggle. If some cell errors, all cells below are not executed. Utility functions can (only) be defined in the `scv_utility.py` script and can be imported in the notebook.
 - Tests are not executed on Kaggle.
 
-# Running tests locally
+## Running tests locally
 
-TODO
+- Tests can be written in the `scv_tests.py` file. Multiple test classes can be created. **Important**: Only methods that start with `test_` are considered a test.
+- Run the test suite with `python scv_tests.py`.
