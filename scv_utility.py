@@ -16,3 +16,33 @@ def get_image_data_from_id(id, data_folder):
     image = cv2.imread(image_folder + image_filename, cv2.IMREAD_GRAYSCALE)
     assert image.shape[0] == int(height) and image.shape[1] == int(width), f"{image_filename} Image width or height does not match resolution from filename"
     return image, (int(height), int(width)), float(pixel_width)
+
+
+""" Converts run-length encoding to x and y coordinates. Useful together with plt.fill: https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.fill.html """
+def rle_to_xy(rle, width, height):
+    x, y = [], []
+
+    for i in range(0,len(rle),2):
+        x.append(rle[i] % width)
+        x.append(rle[i] % width + rle[i+1])
+        y.append(rle[i] // height)
+        y.append(rle[i] // height)
+        
+    return x, y
+
+""" Extracts rle, given id (e.g. "case123_day20_slice_0067") and organ (a.k.a. 'class' but class is a python keyword) """
+def extract_rle(data, id, organ):
+    x = data[data['id'] == id]
+    x = x[x['class']  == organ]
+    rle = x["segmentation"]
+
+    rle = rle.values[0] # Extract the run-length encoding
+    rle = rle.split(' ') # Make a list from it
+    
+    if rle[0] == '':
+        return []
+    
+    rle = list(map(int, rle)) # Map elements to integers
+    
+    return rle
+    
