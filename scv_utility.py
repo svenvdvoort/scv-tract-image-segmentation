@@ -1,8 +1,8 @@
 import cv2
 import os
-from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import torch
+from torch.utils.data import Dataset
 
 import numpy as np
 
@@ -68,26 +68,17 @@ class MRIDataset(Dataset):
         self.label_type = label_type
 
     def __len__(self):
-        return len(self.labels['segmentation'] // 3)
+        return len(self.labels['segmentation']) // 3
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        [case, day, _, slice_number] = self.labels['id'][self.convert_id(idx)].split("_")
-        image_folder = f"{self.root_dir}/train/{case}/{case}_{day}/scans/"
-        image_filename = f"slice_{slice_number}"  # we only know partial filename from id
-        for filename in os.listdir(image_folder):
-            if image_filename in filename and filename.endswith(".png"):
-                image_filename = filename
-                break
-        [_, image_slice_number, width, height, pixel_width, pixel_height] = image_filename[:-4].split("_")
-        assert slice_number == image_slice_number, f"{image_filename} Slice number from filename does not match"
-        assert pixel_height == pixel_width, f"{image_filename} Pixel width and height from filename are not equal"
-        image = cv2.imread(image_folder + image_filename, cv2.IMREAD_GRAYSCALE)
+        id_string = self.labels['id'][self.convert_id(idx)]
+        image, shape, _ = get_image_data_from_id(id_string, self.root_dir)
 
         segmentation = self.labels['segmentation'][idx]
-        segmentation = self.convert_segmentation(segmentation, shape=(int(height), int(width)))
+        segmentation = self.convert_segmentation(segmentation, shape=shape)
         sample = {'image': image, 'segmentation': segmentation}
 
         if self.transform:
