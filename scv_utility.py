@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 import os
 import pandas as pd
 import torch
@@ -18,91 +19,59 @@ def get_image_data_from_id(id, data_folder):
     [_, image_slice_number, width, height, pixel_width, pixel_height] = image_filename[:-4].split("_")
     assert slice_number == image_slice_number, f"{image_filename} Slice number from filename does not match"
     assert pixel_height == pixel_width, f"{image_filename} Pixel width and height from filename are not equal"
-    image = cv2.imread(image_folder + image_filename, cv2.IMREAD_GRAYSCALE)
+    image = cv2.imread(image_folder + image_filename)
+    image = image[:,:,0] / 255.0 # discard redundant RGB information and normalize
     assert image.shape[0] == int(height) and image.shape[1] == int(width), f"{image_filename} Image width or height does not match resolution from filename"
     return image, (int(height), int(width)), float(pixel_width)
 
 
-""" Converts run-length encoding to x and y coordinates. Useful together with plt.fill: https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.fill.html """
-def rle_to_xy(rle, width, height):
-    x, y = [], []
-
-    for i in range(0,len(rle),2):
-        x.append(rle[i] % width)
-        x.append(rle[i] % width + rle[i+1])
-        y.append(rle[i] // height)
-        y.append(rle[i] // height)
-        
-    return x, y
-
-""" Extracts rle, given id (e.g. "case123_day20_slice_0067") and organ (a.k.a. 'class' but class is a python keyword) """
-def extract_rle(data, id, organ):
-    x = data[data['id'] == id]
-    x = x[x['class']  == organ]
-    rle = x["segmentation"]
-
-    rle = rle.values[0] # Extract the run-length encoding
-    rle = rle.split(' ') # Make a list from it
-    
-    if rle[0] == '':
-        return []
-    
-    rle = list(map(int, rle)) # Map elements to integers
-    
-    return rle
-
 class MRIDataset(Dataset):
     """MRI dataset."""
 
-    def __init__(self, root_dir, transform=None, label_type='stomach'):
+    def __init__(self, data_dir, labels, transform=None, target_transform=None):
         """
         Args:
-            csv_file (string): Path to the csv file with annotations.
-            root_dir (string): Directory with all the images.
+            data_dir (string): Directory with all the images.
+            labels (pandas series): Pandas series with labels from CSV file.
             transform (callable, optional): Optional transform to be applied
-                on a sample.
+                on an image.
+            target_transform (callable, optional): Optional transform to be applied
+                on a segmentation mask.
         """
-        self.labels = pd.read_csv(os.path.join(root_dir, 'train.csv'), header=0).to_dict()
-        self.root_dir = root_dir
+        self.labels = labels.to_dict(orient="list")
+        self.data_dir = data_dir
         self.transform = transform
-        self.label_type = label_type
+        self.target_transform = target_transform
 
     def __len__(self):
-        return len(self.labels['segmentation']) // 3
+        return len(self.labels['id'])
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        id_string = self.labels['id'][self.convert_id(idx)]
-        image, shape, _ = get_image_data_from_id(id_string, self.root_dir)
+        id_string = self.labels['id'][idx]
+        image, image_resolution, _ = get_image_data_from_id(id_string, self.data_dir)
 
-        segmentation = self.labels['segmentation'][idx]
-        segmentation = self.convert_segmentation(segmentation, shape=shape)
-        sample = {'image': image, 'segmentation': segmentation}
+        segmentation_rle = self.labels['segmentation'][idx]
+        segmentation_mask = MRIDataset.convert_segmentation(segmentation_rle, image_resolution)
 
         if self.transform:
-            sample = self.transform(sample)
+            image = self.transform(image)
+        if self.target_transform:
+            segmentation_mask = self.target_transform(segmentation_mask)
 
-        return sample
+        return image, segmentation_mask
 
-    def convert_segmentation(self, s, shape):
-        out = np.zeros(shape)
-
-        if isinstance(s, str):
-            s = s.split(" ")
-            for i in range(0, len(s), 2):
-                p = int(s[i])
-                p_x = p % shape[0]
-                p_y = p // shape[0]
-                out[p_x:p_x + int(s[i + 1]), p_y] = 1
-
-        return out
-
-    def convert_id(self, id):
-        offset = 0
-        if self.label_type == 'small_bowel':
-            offset = 1
-        elif self.label_type == 'stomach':
-            offset = 2
-        return 3*id + offset
+    """ Convert run length encoded mask to mask image. """
+    def convert_segmentation(rle_string, resolution):
+        assert len(resolution) == 2 # mask should have single channel
+        mask = np.zeros(resolution[0] * resolution[1])
+        if isinstance(rle_string, str) and rle_string != "": # rle_string could be empty
+            rle = list(map(int, rle_string.split(" ")))
+            for i in range(0, len(rle), 2):
+                index = rle[i]
+                length = rle[i+1]
+                mask[index:index+length] = 1.0
+        mask = mask.reshape(resolution)
+        return mask
