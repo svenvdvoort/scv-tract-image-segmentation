@@ -22,13 +22,22 @@ class TestMRIDataset(unittest.TestCase):
         dataset = MRIDataset(data_folder, self.example_labels)
         self.assertEqual(len(dataset), 2)
         image, mask = dataset[0]
-        self.assertEqual(image.shape, (266, 266))
-        self.assertEqual(mask.shape, (266, 266))
+        self.assertEqual(image.shape, (1, 266, 266))
+        self.assertEqual(mask.shape, (1, 266, 266))
         self.assertNotEqual(np.max(image), 0)
         self.assertEqual(np.max(mask), 0)
         image, mask = dataset[1]
         self.assertNotEqual(np.max(image), 0)
         self.assertNotEqual(np.max(mask), 0)
+
+    def test_dataloader(self):
+        dataset = MRIDataset(data_folder, self.example_labels)
+        dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
+        sample_images, sample_masks = next(iter(dataloader))
+        self.assertEqual(sample_images.shape, (2, 1, 266, 266))
+        self.assertEqual(sample_masks.shape, (2, 1, 266, 266))
+        self.assertEqual(sample_images.dtype, torch.float32)
+        self.assertEqual(sample_masks.dtype, torch.float32)
 
     def test_convert_segmentation_small(self):
         example_segmentation = "1 3 5 1 15 5"
@@ -49,11 +58,6 @@ class TestMRIDataset(unittest.TestCase):
         mask = MRIDataset.convert_segmentation(np.NaN, (5, 5))
         self.assertEqual(mask.shape, (5, 5))
         self.assertEqual(np.max(mask), 0)
-
-    def test_dataloader(self):
-        dataset = MRIDataset(data_folder, self.example_labels)
-        dataloader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=4)
-        # TODO test dataloader?
 
 if __name__ == '__main__':
     unittest.main()

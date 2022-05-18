@@ -1,14 +1,11 @@
 import cv2
 import numpy as np
 import os
-import pandas as pd
 import torch
 import torch.nn as nn
 import torchvision
 import torch.nn.functional as F
 from torch.utils.data import Dataset
-
-import numpy as np
 
 """ Gets image data from filesystem from id. Returns image, image resolution (tuple: height, width) and pixel size (float). """
 def get_image_data_from_id(id, data_folder):
@@ -84,6 +81,7 @@ class MRIDataset(Dataset):
 
 ####################################################################################################################################
 # CREDITS TO: https://amaarora.github.io/2020/09/13/unet.html
+# Loss function from: https://towardsdatascience.com/how-accurate-is-image-segmentation-dd448f896388
 
 class Block(nn.Module):
     def __init__(self, in_ch, out_ch):
@@ -138,6 +136,7 @@ class UNet(nn.Module):
         self.encoder     = Encoder(enc_chs)
         self.decoder     = Decoder(dec_chs)
         self.head        = nn.Conv2d(dec_chs[-1], num_class, 1)
+        self.sigmoid     = nn.Sigmoid()
         self.retain_dim  = retain_dim
         self.out_sz = out_sz
 
@@ -145,8 +144,25 @@ class UNet(nn.Module):
         enc_ftrs = self.encoder(x)
         out      = self.decoder(enc_ftrs[::-1][0], enc_ftrs[::-1][1:])
         out      = self.head(out)
+        out      = self.sigmoid(out)
         if self.retain_dim:
             out = F.interpolate(out, self.out_sz)
         return out
-    
+
+def dice_loss(inputs, target):
+    num = target.size(0)
+    inputs = inputs.reshape(num, -1)
+    target = target.reshape(num, -1)
+    smooth = 1.0
+    intersection = (inputs * target)
+    dice = (2. * intersection.sum(1) + smooth) / (inputs.sum(1) + target.sum(1) + smooth)
+    dice = 1 - dice.sum() / num
+    return dice
+
+def bce_dice_loss(inputs, target):
+    dicescore = dice_loss(inputs, target)
+    bcescore = torch.nn.BCELoss()
+    bceloss = bcescore(inputs, target)
+    return bceloss + dicescore
+
 ####################################################################################################################################
