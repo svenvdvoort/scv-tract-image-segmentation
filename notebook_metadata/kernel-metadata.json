@@ -6,7 +6,7 @@
   "kernel_type": "notebook",
   "is_private": "true",
   "enable_gpu": "true",
-  "enable_internet": "false",
+  "enable_internet": "true",
   "dataset_sources": [],
   "competition_sources": ["uw-madison-gi-tract-image-segmentation"],
   "kernel_sources": ["INSERT_USERNAME/scv-utility"]
