@@ -77,7 +77,7 @@ class MRIDataset(Dataset):
                 mask[index:index+length] = 1.0
         mask = mask.reshape(resolution)
         return mask
-    
+
 
 ####################################################################################################################################
 # CREDITS TO: https://amaarora.github.io/2020/09/13/unet.html
@@ -149,6 +149,7 @@ class UNet(nn.Module):
             out = F.interpolate(out, self.out_sz)
         return out
 
+""" Calculates DICE loss, averaged over batch size. """
 def dice_loss(inputs, target):
     num = target.size(0)
     inputs = inputs.reshape(num, -1)
@@ -159,6 +160,7 @@ def dice_loss(inputs, target):
     dice = 1 - dice.sum() / num
     return dice
 
+""" Calculates combined BCE and DICE loss, averaged over batch size. """
 def bce_dice_loss(inputs, target):
     dicescore = dice_loss(inputs, target)
     bcescore = torch.nn.BCELoss()
