@@ -184,8 +184,9 @@ def train(net, train_data, test_data, criterion, optimizer, batch_size, epochs, 
         avg_train_loss = train_epoch_loss / len(train_loader)
         avg_test_loss = test_epoch_loss / len(test_loader)
         print(f" Train loss: {avg_train_loss}, test loss: {avg_test_loss}")
-        model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
-        torch.save(model_state, f"{checkpoints_name}_checkpoint{epoch+1}.pkl")
+        if (epoch + 1) % 10 == 0:
+            model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
+            torch.save(model_state, f"{checkpoints_name}_checkpoint{epoch+1}.pkl")
     print("Training done")
 
 
