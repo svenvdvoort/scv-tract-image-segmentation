@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torch.nn.functional as F
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 """ Gets image data from filesystem from id. Returns image, image resolution (tuple: height, width) and pixel size (float). """
 def get_image_data_from_id(id, data_folder):
@@ -20,12 +20,49 @@ def get_image_data_from_id(id, data_folder):
     assert slice_number == image_slice_number, f"{image_filename} Slice number from filename does not match"
     assert pixel_height == pixel_width, f"{image_filename} Pixel width and height from filename are not equal"
     image = cv2.imread(image_folder + image_filename)
-    image = image[:,:,0] / 255.0 # discard redundant RGB information and normalize
+    image = image[:,:,0] / 255.0 # discard redundant RGB information and normalize to [0, 1]
     assert image.shape[0] == int(height) and image.shape[1] == int(width), f"{image_filename} Image width or height does not match resolution from filename"
     return image, (int(height), int(width)), float(pixel_width)
 
 
-class MRIDataset(Dataset):
+class MRIClassificationDataset(Dataset):
+    """MRI dataset."""
+
+    def __init__(self, data_dir, labels, transform=None):
+        """
+        Args:
+            data_dir (string): Directory with all the images.
+            labels (pandas series): Pandas series with labels from CSV file.
+            transform (callable, optional): Optional transform to be applied
+                on an image.
+            target_transform (callable, optional): Optional transform to be applied
+                on a segmentation mask.
+        """
+        self.labels = labels.to_dict(orient="list")
+        self.data_dir = data_dir
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.labels['id'])
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        id_string = self.labels['id'][idx]
+        image, _, _ = get_image_data_from_id(id_string, self.data_dir)
+
+        if self.transform:
+            image = self.transform(image)
+
+        segmentation_rle = self.labels['segmentation'][idx]
+        target = 0 if segmentation_rle == "" else 1
+
+        image = image[np.newaxis, ...].astype("float32") # add color dimension
+        target = np.array([target], dtype="float32")
+        return image, target
+
+class MRISegmentationDataset(Dataset):
     """MRI dataset."""
 
     def __init__(self, data_dir, labels, transform=None, target_transform=None):
@@ -54,14 +91,14 @@ class MRIDataset(Dataset):
         image, image_resolution, _ = get_image_data_from_id(id_string, self.data_dir)
 
         segmentation_rle = self.labels['segmentation'][idx]
-        segmentation_mask = MRIDataset.convert_segmentation(segmentation_rle, image_resolution)
+        segmentation_mask = MRISegmentationDataset.convert_segmentation(segmentation_rle, image_resolution)
 
         if self.transform:
             image = self.transform(image)
         if self.target_transform:
             segmentation_mask = self.target_transform(segmentation_mask)
 
-        image = image[np.newaxis, ...].astype("float32")
+        image = image[np.newaxis, ...].astype("float32") # add color dimension
         segmentation_mask = segmentation_mask[np.newaxis, ...].astype("float32")
         return image, segmentation_mask
 
@@ -77,6 +114,46 @@ class MRIDataset(Dataset):
                 mask[index:index+length] = 1.0
         mask = mask.reshape(resolution)
         return mask
+
+""" Train a given network using training and test data. """
+def train(net, train_data, test_data, criterion, optimizer, batch_size, epochs, checkpoints_name="net", output_selector=lambda out : out):
+    # CREDITS for a big portion of the training loop: CS4240 DL assignment 3
+    device = next(net.parameters()).device
+    train_loader = DataLoader(train_data, batch_size, shuffle=True)
+    test_loader = DataLoader(test_data, batch_size)
+    print(f"Start training on device {device}, batch size {batch_size}, {len(train_data)} train samples ({len(train_loader)} batches)")
+    for epoch in range(epochs):
+        train_epoch_loss = 0
+        net.train() # Switch network to train mode
+        print(f"Epoch {epoch+1} 0% [", end="")
+        for i, (x_batch, y_batch) in enumerate(train_loader):
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+            x_batch = x_batch.expand(-1, 3, -1, -1) # TODO adjust networks to take 1 channels instead of 3
+            optimizer.zero_grad()                   # Set the gradients to zero
+            y_pred = output_selector(net(x_batch))  # Perform forward pass
+            loss = criterion(y_pred, y_batch)       # Compute the loss
+            loss.backward()                         # Backward pass to compute gradients
+            optimizer.step()                        # Update parameters
+            train_epoch_loss += loss.item()         # Discard gradients and store total loss
+            if i % (np.max(len(train_loader) // 20, 1)) == 0:
+                print("#", end="")                  # Print progress every 5%
+        print("] 100%", end="")
+        test_epoch_loss = 0
+        with torch.no_grad():
+            net.eval() # Switch network to eval mode
+            for (x_batch, y_batch) in test_loader:
+                x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+                x_batch = x_batch.expand(-1, 3, -1, -1)  # TODO adjust networks to take 1 channels instead of 3
+                y_pred = output_selector(net(x_batch))   # Perform forward pass
+                loss = criterion(y_pred, y_batch)        # Compute the loss
+                test_epoch_loss += loss.item()           # Discard gradients and store total loss
+        # Calculate the average training and validation loss
+        avg_train_loss = train_epoch_loss / len(train_loader)
+        avg_test_loss = test_epoch_loss / len(test_loader)
+        print(f" Train loss: {avg_train_loss}, test loss: {avg_test_loss}")
+        model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
+        torch.save(model_state, f"{checkpoints_name}_checkpoint{epoch+1}.pkl")
+    print("Training done")
 
 
 ####################################################################################################################################
