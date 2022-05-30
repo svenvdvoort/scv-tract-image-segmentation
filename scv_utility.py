@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torch.nn.functional as F
+import math
 from torch.utils.data import Dataset, DataLoader
 
 """ Gets image data from filesystem from id. Returns image, image resolution (tuple: height, width) and pixel size (float). """
@@ -64,6 +65,25 @@ class MRIClassificationDataset(Dataset):
 
 class MRISegmentationDataset(Dataset):
     """MRI dataset."""
+    
+     
+    def preprocess(data):
+        """ 
+            This method takes a df of the ground-truth segmentation csv file and processes it such that the 
+            segmentation information is over different columns. I.e. one column per organ. 
+        """
+        stomachs = data[data["class"] == "stomach"] \
+            .rename(columns={"segmentation": "stomach_segmentation"}) \
+            .drop(columns=["class"])
+        sbowels = data[data["class"] == "small_bowel"] \
+            .rename(columns={"segmentation": "small_bowel_segmentation"}) \
+            .drop(columns=["class"])
+        lbowels = data[data["class"] == "large_bowel"] \
+            .rename(columns={"segmentation": "large_bowel_segmentation"}) \
+            .drop(columns=["class"])
+
+        alltogether = stomachs.merge(sbowels, on="id", how='outer').merge(lbowels, on="id", how='outer')
+        return alltogether
 
     def __init__(self, data_dir, labels, transform=None, target_transform=None):
         """
@@ -75,7 +95,7 @@ class MRISegmentationDataset(Dataset):
             target_transform (callable, optional): Optional transform to be applied
                 on a segmentation mask.
         """
-        self.labels = labels.to_dict(orient="list")
+        self.labels = MRISegmentationDataset.preprocess(labels).to_dict(orient="list")
         self.data_dir = data_dir
         self.transform = transform
         self.target_transform = target_transform
@@ -90,17 +110,28 @@ class MRISegmentationDataset(Dataset):
         id_string = self.labels['id'][idx]
         image, image_resolution, _ = get_image_data_from_id(id_string, self.data_dir)
 
-        segmentation_rle = self.labels['segmentation'][idx]
-        segmentation_mask = MRISegmentationDataset.convert_segmentation(segmentation_rle, image_resolution)
+        stomach_segmentation_rle = self.labels['stomach_segmentation'][idx]
+        stomach_segmentation_mask = MRISegmentationDataset.convert_segmentation(stomach_segmentation_rle, image_resolution)
+        
+        small_bowel_segmentation_rle = self.labels['small_bowel_segmentation'][idx]
+        small_bowel_segmentation_mask = MRISegmentationDataset.convert_segmentation(small_bowel_segmentation_rle, image_resolution)
+        
+        large_bowel_segmentation_rle = self.labels['large_bowel_segmentation'][idx]
+        large_bowel_segmentation_mask = MRISegmentationDataset.convert_segmentation(large_bowel_segmentation_rle, image_resolution)
 
         if self.transform:
             image = self.transform(image)
         if self.target_transform:
-            segmentation_mask = self.target_transform(segmentation_mask)
+            stomach_segmentation_mask = self.target_transform(stomach_segmentation_mask)
+            small_bowel_segmentation_mask = self.target_transform(small_bowel_segmentation_mask)
+            large_bowel_segmentation_mask = self.target_transform(large_bowel_segmentation_mask)
 
         image = image[np.newaxis, ...].astype("float32") # add color dimension
-        segmentation_mask = segmentation_mask[np.newaxis, ...].astype("float32")
-        return image, segmentation_mask
+        stomach_segmentation_mask = stomach_segmentation_mask[np.newaxis, ...].astype("float32")
+        small_bowel_segmentation_mask = small_bowel_segmentation_mask[np.newaxis, ...].astype("float32")
+        large_bowel_segmentation_mask = large_bowel_segmentation_mask[np.newaxis, ...].astype("float32")
+        
+        return image, np.concatenate((stomach_segmentation_mask, small_bowel_segmentation_mask, large_bowel_segmentation_mask), axis=0)
 
     """ Convert run length encoded mask to mask image. """
     def convert_segmentation(rle_string, resolution):
@@ -114,6 +145,8 @@ class MRISegmentationDataset(Dataset):
                 mask[index:index+length] = 1.0
         mask = mask.reshape(resolution)
         return mask
+    
+   
 
 """ Train a given network using training and test data. """
 def train(net, train_data, test_data, criterion, optimizer, batch_size, epochs, checkpoints_name="net", output_selector=lambda out : out):
@@ -135,7 +168,7 @@ def train(net, train_data, test_data, criterion, optimizer, batch_size, epochs, 
             loss.backward()                         # Backward pass to compute gradients
             optimizer.step()                        # Update parameters
             train_epoch_loss += loss.item()         # Discard gradients and store total loss
-            if i % (np.max(len(train_loader) // 20, 1)) == 0:
+            if i % (np.max([len(train_loader) // 20, 1])) == 0:
                 print("#", end="")                  # Print progress every 5%
         print("] 100%", end="")
         test_epoch_loss = 0
