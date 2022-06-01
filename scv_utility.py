@@ -7,6 +7,8 @@ import torchvision
 import torch.nn.functional as F
 import math
 from torch.utils.data import Dataset, DataLoader
+from skimage import io, transform
+from scipy.signal import convolve2d
 
 """ Gets image data from filesystem from id. Returns image, image resolution (tuple: height, width) and pixel size (float). """
 def get_image_data_from_id(id, data_folder):
@@ -36,8 +38,6 @@ class MRIClassificationDataset(Dataset):
             labels (pandas series): Pandas series with labels from CSV file.
             transform (callable, optional): Optional transform to be applied
                 on an image.
-            target_transform (callable, optional): Optional transform to be applied
-                on a segmentation mask.
         """
         self.labels = labels.to_dict(orient="list")
         self.data_dir = data_dir
@@ -53,8 +53,11 @@ class MRIClassificationDataset(Dataset):
         id_string = self.labels['id'][idx]
         image, _, _ = get_image_data_from_id(id_string, self.data_dir)
 
+
         if self.transform:
-            image = self.transform(image)
+            sample = {'image': image}
+            transformed_sample = self.transform(sample)
+            image = transformed_sample['image']
 
         segmentation_rle = self.labels['segmentation'][idx]
         target = 0 if segmentation_rle == "" else 1
@@ -85,20 +88,17 @@ class MRISegmentationDataset(Dataset):
         alltogether = stomachs.merge(sbowels, on="id", how='outer').merge(lbowels, on="id", how='outer')
         return alltogether
 
-    def __init__(self, data_dir, labels, transform=None, target_transform=None):
+    def __init__(self, data_dir, labels, transform=None):
         """
         Args:
             data_dir (string): Directory with all the images.
             labels (pandas series): Pandas series with labels from CSV file.
             transform (callable, optional): Optional transform to be applied
                 on an image.
-            target_transform (callable, optional): Optional transform to be applied
-                on a segmentation mask.
         """
         self.labels = MRISegmentationDataset.preprocess(labels).to_dict(orient="list")
         self.data_dir = data_dir
         self.transform = transform
-        self.target_transform = target_transform
 
     def __len__(self):
         return len(self.labels['id'])
@@ -121,10 +121,14 @@ class MRISegmentationDataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
+
         if self.target_transform:
             stomach_segmentation_mask = self.target_transform(stomach_segmentation_mask)
             small_bowel_segmentation_mask = self.target_transform(small_bowel_segmentation_mask)
             large_bowel_segmentation_mask = self.target_transform(large_bowel_segmentation_mask)
+            sample = {'image': image, 'segmentation': segmentation_mask}
+            transformed_sample = self.transform(sample)
+            image, segmentation_mask = transformed_sample['image'], transformed_sample['segmentation']
 
         image = image[np.newaxis, ...].astype("float32") # add color dimension
         stomach_segmentation_mask = stomach_segmentation_mask[np.newaxis, ...].astype("float32")
@@ -168,7 +172,7 @@ def train(net, train_data, test_data, criterion, optimizer, batch_size, epochs, 
             loss.backward()                         # Backward pass to compute gradients
             optimizer.step()                        # Update parameters
             train_epoch_loss += loss.item()         # Discard gradients and store total loss
-            if i % (np.max([len(train_loader) // 20, 1])) == 0:
+            if i % (max(len(train_loader) // 20, 1)) == 0:
                 print("#", end="")                  # Print progress every 5%
         print("] 100%", end="")
         test_epoch_loss = 0
@@ -279,3 +283,95 @@ def bce_dice_loss(inputs, target):
     return bceloss + dicescore
 
 ####################################################################################################################################
+
+
+####################################################################################################################################
+# CREDITS TO: https://pytorch.org/tutorials/recipes/recipes/custom_dataset_transforms_loader.html
+
+class Rescale(object):
+    """Rescale the image in a sample to a given size.
+
+    Args:
+        output_size (tuple or int): Desired output size. If tuple, output is
+            matched to output_size. If int, smaller of image edges is matched
+            to output_size keeping aspect ratio the same.
+    """
+
+    def __init__(self, output_size):
+        assert isinstance(output_size, tuple)
+        self.output_size = output_size
+
+    def __call__(self, sample):
+        image, segmentation = sample['image'], sample['segmentation']
+
+        new_h, new_w = self.output_size
+
+        new_image = transform.resize(image, (new_h, new_w))
+        new_segmentation = transform.resize(segmentation, (new_h, new_w))
+
+        sample['image'], sample['segmentation'] = new_image, new_segmentation
+        return sample
+
+class RandomCrop(object):
+    """Crop randomly the image in a sample.
+
+    Args:
+        output_size (tuple or int): Desired output size. If int, square crop
+            is made.
+    """
+    def __call__(self, sample):
+        image, segmentation = sample['image'], sample['segmentation']
+        h, w = image.shape[:2]
+
+        right = np.random.randint(1, 10)
+        left = np.random.randint(0, 10)
+        top = np.random.randint(0, 10)
+        bottom = np.random.randint(0, 10)
+        assert right + left < w
+        assert top + bottom < h
+
+
+        new_image = image[top:h-bottom,left:w-right]
+        resized_image = transform.resize(new_image, (h, w))
+
+        if segmentation is None:
+            sample['image'], sample['segmentation'] = resized_image, None
+            return sample
+        else:
+            new_segmentation = segmentation[top:h-bottom,left:w-right]
+            resized_segmentation = transform.resize(new_segmentation, (h, w))
+
+            sample['image'], sample['segmentation'] = resized_image, resized_segmentation
+            return sample
+
+class LabelSmoothing(object):
+    """Smooth the segmentation of a slice.
+
+    Args:
+        p (float): Desired output size. If tuple, output is
+            matched to output_size. If int, smaller of image edges is matched
+            to output_size keeping aspect ratio the same.
+    """
+
+    def __init__(self, p):
+        assert 0 <= p <= 1
+        self.p = p
+
+    def __call__(self, sample):
+        image, segmentation = sample['image'], sample['segmentation']
+        k = np.asarray(np.random.rand(9) < self.p, dtype=int).reshape(3,3) / 9
+        k[1, 1] = 1
+        k = np.clip(k, 0, 1)
+
+        new_segmentation = convolve2d(segmentation, k, mode="same")
+        new_segmentation = np.clip(new_segmentation, 0, 1)
+
+        sample['image'], sample['segmentation'] = image, new_segmentation
+        return sample
+
+def get_all_cases(data_folder):
+    image_folder = f"{data_folder}/train/"
+    out = []
+    for filename in os.listdir(image_folder):
+        out.append(filename + "_")
+    return out
