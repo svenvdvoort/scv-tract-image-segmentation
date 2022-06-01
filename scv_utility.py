@@ -153,48 +153,75 @@ class MRISegmentationDataset(Dataset):
    
 
 """ Train a given network using training and test data. """
-def train(net, train_data, test_data, criterion, optimizer, batch_size, epochs, checkpoints_name="net", output_selector=lambda out : out):
+def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size, epochs, checkpoints_name="net", output_selector=lambda out : out):
     # CREDITS for a big portion of the training loop: CS4240 DL assignment 3
     device = next(net.parameters()).device
     train_loader = DataLoader(train_data, batch_size, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size)
     test_loader = DataLoader(test_data, batch_size)
+
+    # initialize early stopping variables
+    patience = 5
+    val_best_loss = 0
+    patience_cnt = 0
+
     print(f"Start training on device {device}, batch size {batch_size}, {len(train_data)} train samples ({len(train_loader)} batches)")
     for epoch in range(epochs):
-        train_epoch_loss = 0
-        net.train() # Switch network to train mode
-        print(f"Epoch {epoch+1} 0% [", end="")
-        for i, (x_batch, y_batch) in enumerate(train_loader):
-            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-            x_batch = x_batch.expand(-1, 3, -1, -1) # TODO adjust networks to take 1 channels instead of 3
-            optimizer.zero_grad()                   # Set the gradients to zero
-            y_pred = output_selector(net(x_batch))  # Perform forward pass
-            loss = criterion(y_pred, y_batch)       # Compute the loss
-            loss.backward()                         # Backward pass to compute gradients
-            optimizer.step()                        # Update parameters
-            train_epoch_loss += loss.item()         # Discard gradients and store total loss
-            if i % (max(len(train_loader) // 20, 1)) == 0:
-                print("#", end="")                  # Print progress every 5%
-        print("] 100%", end="")
-        test_epoch_loss = 0
-        with torch.no_grad():
-            net.eval() # Switch network to eval mode
-            for (x_batch, y_batch) in test_loader:
-                x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-                x_batch = x_batch.expand(-1, 3, -1, -1)  # TODO adjust networks to take 1 channels instead of 3
-                y_pred = output_selector(net(x_batch))   # Perform forward pass
-                loss = criterion(y_pred, y_batch)        # Compute the loss
-                test_epoch_loss += loss.item()           # Discard gradients and store total loss
+        print(f"Epoch {epoch + 1} 0% [", end="")
+        train_epoch_loss = compute_loss_train(net, train_loader, optimizer, criterion, device, output_selector)
+        test_epoch_loss = compute_loss_eval(net, test_loader, criterion, device, output_selector)
+        val_epoch_loss = compute_loss_eval(net, val_loader, criterion, device, output_selector)
+
         # Calculate the average training and validation loss
         avg_train_loss = train_epoch_loss / len(train_loader)
         avg_test_loss = test_epoch_loss / len(test_loader)
-        print(f" Train loss: {avg_train_loss}, test loss: {avg_test_loss}")
+        avg_val_loss = val_epoch_loss / len(val_loader)
+        print(f" Train loss: {avg_train_loss}, val loss: {avg_val_loss}, test loss: {avg_test_loss}")
         if (epoch + 1) % 10 == 0:
             model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
             torch.save(model_state, f"{checkpoints_name}_checkpoint{epoch+1}.pkl")
+        if avg_val_loss < val_best_loss:
+            val_best_loss = avg_val_loss
+            patience_cnt = 0
+        else:
+            patience_cnt += 1
+            if patience_cnt == patience:
+                print(f"Training is stopped after {patience} epochs without improvement on the validation data")
+                break
+
     print("Training done")
 
 
-####################################################################################################################################
+def compute_loss_train(net, data_loader, optimizer, criterion, device, output_selector):
+    net.train()  # Switch network to train mode
+    epoch_loss = 0
+    for i, (x_batch, y_batch) in enumerate(data_loader):
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+        x_batch = x_batch.expand(-1, 3, -1, -1)  # TODO adjust networks to take 1 channels instead of 3
+        optimizer.zero_grad()  # Set the gradients to zero
+        y_pred = output_selector(net(x_batch))  # Perform forward pass
+        loss = criterion(y_pred, y_batch)  # Compute the loss
+        loss.backward()  # Backward pass to compute gradients
+        optimizer.step()  # Update parameters
+        epoch_loss += loss.item()  # Discard gradients and store total loss
+        if i % (max(len(data_loader) // 20, 1)) == 0:
+            print("#", end="")
+    print("] 100%", end="")
+    return epoch_loss
+
+def compute_loss_eval(net, data_loader, criterion, device, output_selector):
+    epoch_loss = 0
+    with torch.no_grad():
+        net.eval()  # Switch network to eval mode
+        for (x_batch, y_batch) in data_loader:
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+            x_batch = x_batch.expand(-1, 3, -1, -1)  # TODO adjust networks to take 1 channels instead of 3
+            y_pred = output_selector(net(x_batch))  # Perform forward pass
+            loss = criterion(y_pred, y_batch)  # Compute the loss
+            epoch_loss += loss.item()  # Discard gradients and store total loss
+    return epoch_loss
+
+        ####################################################################################################################################
 # CREDITS TO: https://amaarora.github.io/2020/09/13/unet.html
 # Loss function from: https://towardsdatascience.com/how-accurate-is-image-segmentation-dd448f896388
 
