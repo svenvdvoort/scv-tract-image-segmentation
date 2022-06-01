@@ -7,7 +7,6 @@ import torchvision
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from skimage import io, transform
-from torchvision import transforms, utils
 from scipy.signal import convolve2d
 
 """ Gets image data from filesystem from id. Returns image, image resolution (tuple: height, width) and pixel size (float). """
@@ -55,8 +54,11 @@ class MRIClassificationDataset(Dataset):
         id_string = self.labels['id'][idx]
         image, _, _ = get_image_data_from_id(id_string, self.data_dir)
 
+
         if self.transform:
-            image = self.transform(image)
+            sample = {'image': image}
+            transformed_sample = self.transform(sample)
+            image = transformed_sample['image']
 
         segmentation_rle = self.labels['segmentation'][idx]
         target = 0 if segmentation_rle == "" else 1
@@ -96,7 +98,9 @@ class MRISegmentationDataset(Dataset):
         segmentation_mask = MRISegmentationDataset.convert_segmentation(segmentation_rle, image_resolution)
 
         if self.transform:
-            image, segmentation_mask = self.transform(image, segmentation_mask)
+            sample = {'image': image, 'segmentation': segmentation_mask}
+            transformed_sample = self.transform(sample)
+            image, segmentation_mask = transformed_sample['image'], transformed_sample['segmentation']
 
         image = image[np.newaxis, ...].astype("float32") # add color dimension
         segmentation_mask = segmentation_mask[np.newaxis, ...].astype("float32")
@@ -260,24 +264,19 @@ class Rescale(object):
     """
 
     def __init__(self, output_size):
-        assert isinstance(output_size, int)
+        assert isinstance(output_size, tuple)
         self.output_size = output_size
 
-    def __call__(self, image, segmentation):
+    def __call__(self, sample):
+        image, segmentation = sample['image'], sample['segmentation']
 
-        h, w = image.shape[:2]
-        if isinstance(self.output_size, int):
-            if h > w:
-                new_h, new_w = self.output_size * h / w, self.output_size
-            else:
-                new_h, new_w = self.output_size, self.output_size * w / h
-
-        new_h, new_w = int(new_h), int(new_w)
+        new_h, new_w = self.output_size
 
         new_image = transform.resize(image, (new_h, new_w))
         new_segmentation = transform.resize(segmentation, (new_h, new_w))
 
-        return new_image, new_segmentation
+        sample['image'], sample['segmentation'] = new_image, new_segmentation
+        return sample
 
 class RandomCrop(object):
     """Crop randomly the image in a sample.
@@ -286,8 +285,8 @@ class RandomCrop(object):
         output_size (tuple or int): Desired output size. If int, square crop
             is made.
     """
-    def __call__(self, image, segmentation=None):
-
+    def __call__(self, sample):
+        image, segmentation = sample['image'], sample['segmentation']
         h, w = image.shape[:2]
 
         right = np.random.randint(1, 10)
@@ -302,12 +301,14 @@ class RandomCrop(object):
         resized_image = transform.resize(new_image, (h, w))
 
         if segmentation is None:
-            return resized_image
+            sample['image'], sample['segmentation'] = resized_image, None
+            return sample
         else:
             new_segmentation = segmentation[top:h-bottom,left:w-right]
             resized_segmentation = transform.resize(new_segmentation, (h, w))
 
-            return resized_image, resized_segmentation
+            sample['image'], sample['segmentation'] = resized_image, resized_segmentation
+            return sample
 
 class LabelSmoothing(object):
     """Smooth the segmentation of a slice.
@@ -322,11 +323,21 @@ class LabelSmoothing(object):
         assert 0 <= p <= 1
         self.p = p
 
-    def __call__(self, image, segmentation):
+    def __call__(self, sample):
+        image, segmentation = sample['image'], sample['segmentation']
         k = np.asarray(np.random.rand(9) < self.p, dtype=int).reshape(3,3) / 9
         k[1, 1] = 1
         k = np.clip(k, 0, 1)
 
         new_segmentation = convolve2d(segmentation, k, mode="same")
         new_segmentation = np.clip(new_segmentation, 0, 1)
-        return image, new_segmentation
+
+        sample['image'], sample['segmentation'] = image, new_segmentation
+        return sample
+
+def get_all_cases():
+    image_folder = "data/train/"
+    out = []
+    for filename in os.listdir(image_folder):
+        out.append(filename + "_")
+    return out

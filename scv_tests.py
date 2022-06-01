@@ -72,17 +72,18 @@ class TestMRIDataset(unittest.TestCase):
             [0, 0, 0, 0, 0],
         ])
         smooth = LabelSmoothing(p=0)
-        _, output_mask = smooth(np.zeros((5, 5)), input_mask)
-        assert (input_mask == output_mask).all()
+        sample = {'image': np.zeros((5,5)), 'segmentation': input_mask}
+        sample = smooth(sample)
+        assert (input_mask == sample['segmentation']).all()
 
         smooth = LabelSmoothing(p=1)
-        _, output_mask = smooth(np.zeros((5, 5)), input_mask)
+        sample = smooth(sample)
         true_mask = np.array([[0.22, 1, 1, 1, 0.11],
                               [1, 0.33, 0.33, 0.22, 0.11],
                               [0.33, 0.44, 0.33, 0.33, 0.22],
                               [1, 1, 1, 1, 1],
                               [0.22, 0.33, 0.33, 0.33, 0.22]])
-        assert (abs(true_mask - output_mask) < 1e-2).all()
+        assert (abs(true_mask - sample['segmentation']) < 1e-2).all()
 
     def test_random_crop(self, visualize=False):
         dataset = MRISegmentationDataset(data_folder, self.example_labels)
@@ -107,10 +108,11 @@ class TestMRIDataset(unittest.TestCase):
     def test_rescale(self):
         shape = (5, 5)
         new_shape = (10, 10)
-        scale = Rescale(10)
-        output_image, output_mask = scale(np.zeros(shape), np.zeros(shape))
-        assert output_mask.shape == new_shape
-        assert output_image.shape == new_shape
+        scale = Rescale(new_shape)
+        sample = {'image': np.zeros(shape), 'segmentation': np.zeros(shape)}
+        sample = scale(sample)
+        assert sample['image'].shape == new_shape
+        assert sample['segmentation'].shape == new_shape
 
 
 if __name__ == '__main__':
