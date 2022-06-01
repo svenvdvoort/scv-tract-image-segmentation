@@ -335,8 +335,8 @@ class LabelSmoothing(object):
         sample['image'], sample['segmentation'] = image, new_segmentation
         return sample
 
-def get_all_cases():
-    image_folder = "data/train/"
+def get_all_cases(data_folder):
+    image_folder = f"{data_folder}/train/"
     out = []
     for filename in os.listdir(image_folder):
         out.append(filename + "_")
