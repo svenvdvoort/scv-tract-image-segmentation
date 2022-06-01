@@ -1,5 +1,5 @@
 {
-  "id": "paulhueber/scv-tract-image-segmentation",
+  "id": "INSERT_USERNAME/scv-tract-image-segmentation",
   "title": "SCV Tract Image Segmentation",
   "code_file": "../scv_notebook.ipynb",
   "language": "python",
@@ -9,5 +9,5 @@
   "enable_internet": "true",
   "dataset_sources": [],
   "competition_sources": ["uw-madison-gi-tract-image-segmentation"],
-  "kernel_sources": ["paulhueber/scv-utility"]
+  "kernel_sources": ["INSERT_USERNAME/scv-utility"]
 }
