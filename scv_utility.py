@@ -120,15 +120,15 @@ class MRISegmentationDataset(Dataset):
         large_bowel_segmentation_mask = MRISegmentationDataset.convert_segmentation(large_bowel_segmentation_rle, image_resolution)
 
         if self.transform:
-            image = self.transform(image)
-
-        if self.target_transform:
-            stomach_segmentation_mask = self.target_transform(stomach_segmentation_mask)
-            small_bowel_segmentation_mask = self.target_transform(small_bowel_segmentation_mask)
-            large_bowel_segmentation_mask = self.target_transform(large_bowel_segmentation_mask)
-            sample = {'image': image, 'segmentation': segmentation_mask}
+            sample = {'image': image,
+                      'segmentation_stomach': stomach_segmentation_mask,
+                      'segmentation_small_bowel': large_bowel_segmentation_mask,
+                      'segmentation_large_bowel': small_bowel_segmentation_mask, }
             transformed_sample = self.transform(sample)
-            image, segmentation_mask = transformed_sample['image'], transformed_sample['segmentation']
+            image = transformed_sample['image']
+            stomach_segmentation_mask = transformed_sample['segmentation_stomach']
+            small_bowel_segmentation_mask = transformed_sample['segmentation_small_bowel']
+            large_bowel_segmentation_mask = transformed_sample['segmentation_large_bowel']
 
         image = image[np.newaxis, ...].astype("float32") # add color dimension
         stomach_segmentation_mask = stomach_segmentation_mask[np.newaxis, ...].astype("float32")
@@ -302,14 +302,11 @@ class Rescale(object):
         self.output_size = output_size
 
     def __call__(self, sample):
-        image, segmentation = sample['image'], sample['segmentation']
-
         new_h, new_w = self.output_size
 
-        new_image = transform.resize(image, (new_h, new_w))
-        new_segmentation = transform.resize(segmentation, (new_h, new_w))
+        for key in sample:
+            sample[key] = transform.resize(sample[key], (new_h, new_w))
 
-        sample['image'], sample['segmentation'] = new_image, new_segmentation
         return sample
 
 class RandomCrop(object):
@@ -320,8 +317,7 @@ class RandomCrop(object):
             is made.
     """
     def __call__(self, sample):
-        image, segmentation = sample['image'], sample['segmentation']
-        h, w = image.shape[:2]
+        h, w = sample['image'].shape[:2]
 
         right = np.random.randint(1, 10)
         left = np.random.randint(0, 10)
@@ -330,19 +326,11 @@ class RandomCrop(object):
         assert right + left < w
         assert top + bottom < h
 
+        for key in sample:
+            new_image = sample[key][top:h-bottom,left:w-right]
+            sample[key] = transform.resize(new_image, (h, w))
 
-        new_image = image[top:h-bottom,left:w-right]
-        resized_image = transform.resize(new_image, (h, w))
-
-        if segmentation is None:
-            sample['image'], sample['segmentation'] = resized_image, None
-            return sample
-        else:
-            new_segmentation = segmentation[top:h-bottom,left:w-right]
-            resized_segmentation = transform.resize(new_segmentation, (h, w))
-
-            sample['image'], sample['segmentation'] = resized_image, resized_segmentation
-            return sample
+        return sample
 
 class LabelSmoothing(object):
     """Smooth the segmentation of a slice.
@@ -358,15 +346,14 @@ class LabelSmoothing(object):
         self.p = p
 
     def __call__(self, sample):
-        image, segmentation = sample['image'], sample['segmentation']
         k = np.asarray(np.random.rand(9) < self.p, dtype=int).reshape(3,3) / 9
         k[1, 1] = 1
         k = np.clip(k, 0, 1)
 
-        new_segmentation = convolve2d(segmentation, k, mode="same")
-        new_segmentation = np.clip(new_segmentation, 0, 1)
+        for key in sample:
+            new_segmentation = convolve2d(sample[key], k, mode="same")
+            sample[key] = np.clip(new_segmentation, 0, 1)
 
-        sample['image'], sample['segmentation'] = image, new_segmentation
         return sample
 
 def get_all_cases(data_folder):
