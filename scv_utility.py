@@ -163,8 +163,8 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
     train_losses, val_losses, test_losses = [], [], []
 
     # initialize early stopping variables
-    patience = 5
-    val_best_loss = 0
+    patience = 10
+    val_best_loss = sys.maxint
     patience_cnt = 0
 
     print(f"Start training on device {device}, batch size {batch_size}, {len(train_data)} train samples ({len(train_loader)} batches)")
@@ -189,6 +189,8 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
         if avg_val_loss < val_best_loss:
             val_best_loss = avg_val_loss
             patience_cnt = 0
+            model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
+            torch.save(model_state, f"{checkpoints_name}_best_model.pkl")
         else:
             patience_cnt += 1
             if patience_cnt == patience:
