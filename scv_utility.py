@@ -187,6 +187,8 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
             patience_cnt += 1
             if patience_cnt == patience:
                 print(f"Training is stopped after {patience} epochs without improvement on the validation data")
+                model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
+                torch.save(model_state, f"{checkpoints_name}_checkpoint{epoch+1}_final.pkl")
                 break
 
     print("Training done")
