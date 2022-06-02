@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import os
-import sys
 import torch
 import torch.nn as nn
 import torchvision
@@ -165,7 +164,7 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
 
     # initialize early stopping variables
     patience = 10
-    val_best_loss = sys.maxint
+    val_best_loss = float("inf")
     patience_cnt = 0
 
     print(f"Start training on device {device}, batch size {batch_size}, {len(train_data)} train samples ({len(train_loader)} batches)")
