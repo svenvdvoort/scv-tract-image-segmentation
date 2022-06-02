@@ -159,6 +159,8 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
     train_loader = DataLoader(train_data, batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size)
     test_loader = DataLoader(test_data, batch_size)
+    
+    train_losses, val_losses, test_losses = [], [], []
 
     # initialize early stopping variables
     patience = 5
@@ -176,6 +178,10 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
         avg_train_loss = train_epoch_loss / len(train_loader)
         avg_test_loss = test_epoch_loss / len(test_loader)
         avg_val_loss = val_epoch_loss / len(val_loader)
+        train_losses.append(avg_train_loss)
+        test_losses.append(avg_test_loss)
+        val_losses.append(avg_val_loss)
+        
         print(f" Train loss: {avg_train_loss}, val loss: {avg_val_loss}, test loss: {avg_test_loss}")
         if (epoch + 1) % 10 == 0:
             model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
@@ -192,6 +198,7 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
                 break
 
     print("Training done")
+    return train_losses, val_losses, test_losses
 
 
 def compute_loss_train(net, data_loader, optimizer, criterion, device, output_selector):
@@ -294,13 +301,13 @@ class UNet(nn.Module):
         return out
 
 """ Calculates DICE loss, averaged over batch size. """
-def dice_loss(inputs, target):
-    num = target.size(0)
+def dice_loss(inputs, targe):
+    num = targe.shape[0]
     inputs = inputs.reshape(num, -1)
-    target = target.reshape(num, -1)
+    targe = targe.reshape(num, -1)
     smooth = 1.0
-    intersection = (inputs * target)
-    dice = (2. * intersection.sum(1) + smooth) / (inputs.sum(1) + target.sum(1) + smooth)
+    intersection = (inputs * targe)
+    dice = (2. * intersection.sum(1) + smooth) / (inputs.sum(1) + targe.sum(1) + smooth)
     dice = 1 - dice.sum() / num
     return dice
 
