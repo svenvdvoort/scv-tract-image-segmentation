@@ -32,7 +32,7 @@ for _ in range(30):
     print(".", end="", flush=True)
 print()
 if len(sys.argv) > 1 and sys.argv[1] == "first":    
-    subprocess.run("kaggle datasets create -p ./model_data/ -m \"Eval on Kaggle\"", shell=True)
+    subprocess.run("kaggle datasets create -p ./model_data/", shell=True)
 else:
     subprocess.run("kaggle datasets version -p ./model_data/ -m \"Eval on Kaggle\"", shell=True)
 print("Model data was updated. Now waiting 30 sec for it to become available...")
