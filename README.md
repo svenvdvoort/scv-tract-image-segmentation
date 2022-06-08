@@ -14,6 +14,10 @@ We picked this challenge as a project for the TU Delft course Seminar Computer V
 - **Important**: Only code in the `scv_notebook.ipynb` notebook is automatically executed on Kaggle. If some cell errors, all cells below are not executed. Utility functions can (only) be defined in the `scv_utility.py` script and can be imported in the notebook.
 - Tests are not executed on Kaggle.
 
+## Evaluating model on Kaggle
+
+- Run the included Python script: `python eval_on_kaggle.py` (if you're using the script for the **first** time use `python eval_on_kaggle.py first`)
+
 ## Running tests locally
 
 - Tests can be written in the `scv_tests.py` file. Multiple test classes can be created. **Important**: Only methods that start with `test_` are considered a test.

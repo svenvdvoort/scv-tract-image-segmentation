@@ -1,6 +1,7 @@
 """ Python script that automates running the notebook and included scripts on Kaggle """
 import re
 import subprocess
+import sys
 import time
 
 try:
@@ -17,7 +18,7 @@ with open("utility_metadata/kernel-metadata.json", "r") as f:
     utility_metadata = f.read()
 with open("model_data/dataset-metadata.json", "r") as f:
     model_data_metadata = f.read()
-with open("notebook_metadata/kernel-metadata.json", "w") as f:
+with open("eval_notebook_metadata/kernel-metadata.json", "w") as f:
     f.write(eval_notebook_metadata.replace("INSERT_USERNAME", username))
 with open("utility_metadata/kernel-metadata.json", "w") as f:
     f.write(utility_metadata.replace("INSERT_USERNAME", username))
@@ -30,16 +31,19 @@ for _ in range(30):
     time.sleep(1)
     print(".", end="", flush=True)
 print()
-subprocess.run("kaggle datasets create -p ./model_data/", shell=True)
+if len(sys.argv) > 1 and sys.argv[1] == "first":    
+    subprocess.run("kaggle datasets create -p ./model_data/ -m \"Eval on Kaggle\"", shell=True)
+else:
+    subprocess.run("kaggle datasets version -p ./model_data/ -m \"Eval on Kaggle\"", shell=True)
 print("Model data was updated. Now waiting 30 sec for it to become available...")
 for _ in range(30):
     time.sleep(1)
     print(".", end="", flush=True)
 print()
-subprocess.run("kaggle kernels push -p ./eval_notebook_metadata", shell=True)
+subprocess.run("kaggle kernels push -p ./eval_notebook_metadata/", shell=True)
 
 # Revert to original metadata files
-with open("notebook_metadata/kernel-metadata.json", "w") as f:
+with open("eval_notebook_metadata/kernel-metadata.json", "w") as f:
     f.write(eval_notebook_metadata)
 with open("utility_metadata/kernel-metadata.json", "w") as f:
     f.write(utility_metadata)

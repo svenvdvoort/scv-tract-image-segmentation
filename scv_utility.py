@@ -2,8 +2,6 @@ import cv2
 import numpy as np
 import os
 import torch
-import torch.nn as nn
-import torchvision
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from skimage import io, transform
@@ -168,7 +166,7 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
 
     print(f"Start training on device {device}, batch size {batch_size}, {len(train_data)} train samples ({len(train_loader)} batches)")
     for epoch in range(epochs):
-        print(f"Epoch {epoch + 1} 0% [", end="")
+        print(f"Epoch {epoch + 1}", end="", flush=True)
         train_epoch_loss = compute_loss_train(net, train_loader, optimizer, criterion, device, output_selector)
         test_epoch_loss = compute_loss_eval(net, test_loader, criterion, device, output_selector)
         val_epoch_loss = compute_loss_eval(net, val_loader, criterion, device, output_selector)
@@ -183,19 +181,16 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
         
         print(f" Train loss: {avg_train_loss}, val loss: {avg_val_loss}, test loss: {avg_test_loss}")
         if (epoch + 1) % 10 == 0:
-            model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
-            torch.save(model_state, f"{checkpoints_name}_checkpoint{epoch+1}.pkl")
+            store_model(net, optimizer, checkpoints_name)
         if avg_val_loss < val_best_loss:
             val_best_loss = avg_val_loss
             patience_cnt = 0
-            model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
-            torch.save(model_state, f"{checkpoints_name}_best_model.pkl")
+            store_model(net, optimizer, checkpoints_name)
         else:
             patience_cnt += 1
             if patience_cnt == patience:
                 print(f"Training is stopped after {patience} epochs without improvement on the validation data")
-                model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
-                torch.save(model_state, f"{checkpoints_name}_checkpoint{epoch+1}_final.pkl")
+                store_model(net, optimizer, checkpoints_name)
                 break
 
     print("Training done")
@@ -205,6 +200,7 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
 def compute_loss_train(net, data_loader, optimizer, criterion, device, output_selector):
     net.train()  # Switch network to train mode
     epoch_loss = 0
+    print("0% [", end="", flush=True)
     for i, (x_batch, y_batch) in enumerate(data_loader):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         x_batch = x_batch.expand(-1, 3, -1, -1)  # TODO adjust networks to take 1 channels instead of 3
@@ -230,6 +226,22 @@ def compute_loss_eval(net, data_loader, criterion, device, output_selector):
             loss = criterion(y_pred, y_batch)  # Compute the loss
             epoch_loss += loss.item()  # Discard gradients and store total loss
     return epoch_loss
+
+def store_model(net, optimizer, filename):
+    model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
+    torch.save(model_state, f"{filename}_best_model.pkl")
+
+def evaluate_segmentation_model(net, threshold, dataset):
+    device = next(net.parameters()).device
+    net.eval()
+    dice_scores = []
+    for x_batch, y_batch in DataLoader(dataset, batch_size=16):
+        test_predictions = torch.sigmoid(net(x_batch.expand(-1, 3, -1, -1).to(device))["out"]).detach().cpu().numpy()
+        y_batch = y_batch.detach().cpu().numpy()
+        test_predictions[test_predictions > threshold] = 1.
+        test_predictions[test_predictions < 1.] = 0.
+        dice_scores.append(1 - dice_loss(test_predictions, y_batch).item())
+    return np.average(dice_scores)
 
 ####################################################################################################################################
 # Loss function from: https://towardsdatascience.com/how-accurate-is-image-segmentation-dd448f896388
