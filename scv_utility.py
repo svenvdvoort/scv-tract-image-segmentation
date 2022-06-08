@@ -181,7 +181,7 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
         test_losses.append(avg_test_loss)
         val_losses.append(avg_val_loss)
         
-        print(f" Train loss: {avg_train_loss}, val loss: {avg_val_loss}, test loss: {avg_test_loss}")
+        print(f"Train loss: {avg_train_loss}, val loss: {avg_val_loss}, test loss: {avg_test_loss}")
         if (epoch + 1) % 10 == 0:
             store_model(net, optimizer, checkpoints_name)
         if avg_val_loss < val_best_loss:
@@ -202,7 +202,7 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
 def compute_loss_train(net, data_loader, optimizer, criterion, device, output_selector):
     net.train()  # Switch network to train mode
     epoch_loss = 0
-    print("0% [", end="", flush=True)
+    print(" 0% [", end="", flush=True)
     for i, (x_batch, y_batch) in enumerate(data_loader):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         x_batch = x_batch.expand(-1, 3, -1, -1)  # TODO adjust networks to take 1 channels instead of 3
@@ -214,7 +214,7 @@ def compute_loss_train(net, data_loader, optimizer, criterion, device, output_se
         epoch_loss += loss.item()  # Discard gradients and store total loss
         if i % (max(len(data_loader) // 20, 1)) == 0:
             print("#", end="")
-    print("] 100%", end="")
+    print("] 100% ", end="")
     return epoch_loss
 
 def compute_loss_eval(net, data_loader, criterion, device, output_selector):
