@@ -7,6 +7,7 @@ import unittest
 import math
 import matplotlib.pyplot as plt
 import torch
+from torchvision import transforms
 
 data_folder = "./data/"
 
@@ -103,7 +104,7 @@ class TestMRISegmentationDataset(unittest.TestCase):
         assert (abs(true_mask - sample['segmentation']) < 1e-2).all()
 
     def test_random_crop(self, visualize=False):
-        dataset = MRISegmentationDataset(data_folder, self.example_labels)
+        dataset = MRISegmentationDataset(data_folder, self.example_labels, transform=transforms.Normalize())
         dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
         sample_image, sample_mask = next(iter(dataloader))
 
@@ -131,6 +132,17 @@ class TestMRISegmentationDataset(unittest.TestCase):
         assert sample['image'].shape == new_shape
         assert sample['segmentation'].shape == new_shape
 
+    def test_normalize(self):
+        dataset = MRISegmentationDataset(data_folder, self.example_labels)
+        dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
+        sample_image, sample_mask = next(iter(dataloader))
+
+        dataset_norm = MRISegmentationDataset(data_folder, self.example_labels, transform=Normalize(mean=0.485, std=0.229))
+        dataloader_norm = DataLoader(dataset_norm, batch_size=1, shuffle=True)
+        sample_image_norm, sample_mask_norm = next(iter(dataloader_norm))
+
+        assert (sample_mask == sample_mask_norm).all()
+        assert (sample_image != sample_mask_norm).any()
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import os
 import torch
+import torch.nn as nn
+from torchvision.transforms.functional import normalize
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from skimage import io, transform
@@ -335,6 +337,24 @@ class LabelSmoothing(object):
         for key in sample:
             new_segmentation = convolve2d(sample[key], k, mode="same")
             sample[key] = np.clip(new_segmentation, 0, 1)
+
+        return sample
+
+class Normalize(object):
+    """Normalize the input image of a slice.
+
+    Args:
+        mean (float): Desired mean of normalized image
+        std (float): Desired std of normalized image
+    """
+
+    def __init__(self, mean, std):
+        assert 0 <= mean <= 1
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, sample):
+        sample['image'] = (sample['image'] - self.mean) / self.std
 
         return sample
 
