@@ -1,5 +1,6 @@
 # Project specific ignores
 data/
+model_data/*.pkl
 .ipynb_checkpoints
 
 # Python ignores (source: https://github.com/github/gitignore/blob/main/Python.gitignore)
