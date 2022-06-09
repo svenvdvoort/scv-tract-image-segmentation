@@ -123,7 +123,7 @@ class TestMRISegmentationDataset(unittest.TestCase):
         assert sample_image.shape == sample_image_crop.shape
         assert sample_mask.shape == sample_mask_crop.shape
 
-    def test_rescale(self):
+    def test_rescale_matrix(self):
         shape = (5, 5)
         new_shape = (10, 10)
         scale = Rescale(new_shape)
@@ -131,6 +131,31 @@ class TestMRISegmentationDataset(unittest.TestCase):
         sample = scale(sample)
         assert sample['image'].shape == new_shape
         assert sample['segmentation'].shape == new_shape
+
+    def test_rescale_image(self, visualize=True):
+        ### bad:129, 133, 134, 145, 148, 116, 114, 113, 110, 102, 89, 85, 78, 49, 41
+        ### : 131, 36, 19, 18, 16, 11, 9, 6
+        ### some bad, some good: 147
+
+        example_labels_bad = pd.DataFrame(
+            [["case6_day0_slice_0065", "stomach",
+              "28094 3 28358 7 28623 9 28889 9 29155 9 29421 9 29687 9 29953 9 30219 9 30484 10 30750 10 31016 10 31282 10 31548 10 31814 10 32081 9 32347 8 32614 6"]],
+            columns=["id", "class", "segmentation"])
+        dataset = MRISegmentationDataset(data_folder, example_labels_bad)
+        dataloader = DataLoader(dataset, batch_size=1)
+        sample_image, sample_mask = next(iter(dataloader))
+
+        dataset_rescale = MRISegmentationDataset(data_folder, example_labels_bad, transform=Rescale((266,266)))
+        dataloader_rescale = DataLoader(dataset_rescale, batch_size=1)
+        sample_image_rescale, sample_mask_rescale = next(iter(dataloader_rescale))
+
+        if visualize:
+            fig, axs = plt.subplots(2, 2)
+            axs[0, 0].imshow(sample_image[0][0])
+            axs[0, 1].imshow(sample_mask[0][0])
+            axs[1, 0].imshow(sample_image_rescale[0][0])
+            axs[1, 1].imshow(sample_mask_rescale[0][0])
+            plt.show()
 
     def test_normalize(self):
         dataset = MRISegmentationDataset(data_folder, self.example_labels)

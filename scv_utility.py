@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from skimage import io, transform
 from scipy.signal import convolve2d
+import random
 
 """ Gets image data from filesystem from id. Returns image, image resolution (tuple: height, width) and pixel size (float). """
 def get_image_data_from_id(id, data_folder):
@@ -359,11 +360,16 @@ class Normalize(object):
         return sample
 
 def get_all_cases(data_folder):
+    bad = ["case129", "case133",  "case134", "case145", "case148", "case116",
+           "case114", "case113", "case110", "case102", "case89", "case85",
+           "case78", "case49", "case41", "case131", "case36", "case19",
+           "case18", "case16", "case11", "case9", "case6"]
     image_folder = f"{data_folder}/train/"
     out = []
     for filename in os.listdir(image_folder):
-        out.append(filename + "_")
-    return out
+        if filename not in bad:
+            out.append(filename + "_")
+    return random.shuffle(out)
 
 # https://www.codespeedy.com/how-to-create-a-stopwatch-in-python/
 import time
