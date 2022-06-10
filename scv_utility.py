@@ -184,16 +184,16 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
         
         print(f"Train loss: {avg_train_loss}, val loss: {avg_val_loss}, test loss: {avg_test_loss}")
         if (epoch + 1) % 10 == 0:
-            store_model(net, optimizer, checkpoints_name)
+            store_model(net, optimizer, "epoch_" + epoch + "_" + checkpoints_name)
         if avg_val_loss < val_best_loss:
             val_best_loss = avg_val_loss
             patience_cnt = 0
-            store_model(net, optimizer, checkpoints_name)
+            store_model(net, optimizer, "best_" + checkpoints_name)
         else:
             patience_cnt += 1
             if patience_cnt == patience:
                 print(f"Training is stopped after {patience} epochs without improvement on the validation data")
-                store_model(net, optimizer, checkpoints_name)
+                store_model(net, optimizer, "patience_" + checkpoints_name)
                 break
 
     print("Training done")
@@ -369,7 +369,7 @@ def get_all_cases(data_folder):
     for filename in os.listdir(image_folder):
         if filename not in bad:
             out.append(filename + "_")
-    return random.shuffle(out)
+    return out
 
 # https://www.codespeedy.com/how-to-create-a-stopwatch-in-python/
 import time
