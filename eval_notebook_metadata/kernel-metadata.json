@@ -1,5 +1,5 @@
 {
-  "id": "INSERT_USERNAME/scv-eval-notebook",
+  "id": "paulhueber/scv-eval-notebook",
   "title": "SCV Eval Notebook",
   "code_file": "../scv_eval_notebook.ipynb",
   "language": "python",
@@ -7,7 +7,7 @@
   "is_private": "true",
   "enable_gpu": "true",
   "enable_internet": "true",
-  "dataset_sources": ["INSERT_USERNAME/scv-model-data"],
+  "dataset_sources": ["paulhueber/scv-model-data"],
   "competition_sources": ["uw-madison-gi-tract-image-segmentation"],
-  "kernel_sources": ["INSERT_USERNAME/scv-utility"]
+  "kernel_sources": ["paulhueber/scv-utility"]
 }

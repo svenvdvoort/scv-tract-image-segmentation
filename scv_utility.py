@@ -369,7 +369,9 @@ def get_all_cases(data_folder):
     for filename in os.listdir(image_folder):
         if filename not in bad:
             out.append(filename + "_")
-    return random.shuffle(out)
+    #random.seed(42)
+    #random.shuffle(out)
+    return out
 
 # https://www.codespeedy.com/how-to-create-a-stopwatch-in-python/
 import time
