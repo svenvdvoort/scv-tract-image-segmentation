@@ -217,7 +217,7 @@ def compute_loss_train(net, data_loader, optimizer, criterion, device, output_se
 def compute_loss_eval(net, data_loader, criterion, device, output_selector):
     epoch_loss = 0
     with torch.no_grad():
-        net.eval()  # Switch network to eval mode
+        # net.eval() # .eval() affects networks outcomes
         for (x_batch, y_batch) in data_loader:
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)
             x_batch = x_batch.expand(-1, 3, -1, -1)  # TODO adjust networks to take 1 channels instead of 3
@@ -232,7 +232,7 @@ def store_model(net, optimizer, filename):
 
 def evaluate_segmentation_model(net, threshold, dataset):
     device = next(net.parameters()).device
-    net.eval()
+    # net.eval() # .eval() affects network outcomes
     dice_scores = []
     for x_batch, y_batch in DataLoader(dataset, batch_size=16):
         test_predictions = torch.sigmoid(net(x_batch.expand(-1, 3, -1, -1).to(device))["out"]).detach().cpu().numpy()
@@ -337,23 +337,23 @@ class LabelSmoothing(object):
 
         return sample
 
-class Normalize(object):
-    """Normalize the input image of a slice.
+# class Normalize(object):
+#     """Normalize the input image of a slice.
 
-    Args:
-        mean (float): Desired mean of normalized image
-        std (float): Desired std of normalized image
-    """
+#     Args:
+#         mean (float): Desired mean of normalized image
+#         std (float): Desired std of normalized image
+#     """
 
-    def __init__(self, mean, std):
-        assert 0 <= mean <= 1
-        self.mean = mean
-        self.std = std
+#     def __init__(self, mean, std):
+#         assert 0 <= mean <= 1
+#         self.mean = mean
+#         self.std = std
 
-    def __call__(self, sample):
-        sample['image'] = (sample['image'] - self.mean) / self.std
+#     def __call__(self, sample):
+#         sample['image'] = (sample['image'] - self.mean) / self.std
 
-        return sample
+#         return sample
 
 def get_all_cases(data_folder):
     bad = ["case129", "case133",  "case134", "case145", "case148", "case116",
