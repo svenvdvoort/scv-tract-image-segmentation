@@ -337,23 +337,23 @@ class LabelSmoothing(object):
 
         return sample
 
-# class Normalize(object):
-#     """Normalize the input image of a slice.
+class Normalize(object):
+    """Normalize the input image of a slice.
 
-#     Args:
-#         mean (float): Desired mean of normalized image
-#         std (float): Desired std of normalized image
-#     """
+    Args:
+        mean (float): Desired mean of normalized image
+        std (float): Desired std of normalized image
+    """
 
-#     def __init__(self, mean, std):
-#         assert 0 <= mean <= 1
-#         self.mean = mean
-#         self.std = std
+    def __init__(self, mean, std):
+        assert 0 <= mean <= 1
+        self.mean = mean
+        self.std = std
 
-#     def __call__(self, sample):
-#         sample['image'] = (sample['image'] - self.mean) / self.std
+    def __call__(self, sample):
+        sample['image'] = (sample['image'] - self.mean) / self.std
 
-#         return sample
+        return sample
 
 def get_all_cases(data_folder):
     bad = ["case129", "case133",  "case134", "case145", "case148", "case116",
