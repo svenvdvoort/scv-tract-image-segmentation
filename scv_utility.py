@@ -184,7 +184,7 @@ def train(net, train_data, val_data, test_data, criterion, optimizer, batch_size
         
         print(f"Train loss: {avg_train_loss}, val loss: {avg_val_loss}, test loss: {avg_test_loss}")
         if (epoch + 1) % 10 == 0:
-            store_model(net, optimizer, "epoch_" + epoch + "_" + checkpoints_name)
+            store_model(net, optimizer, "epoch_" + str(epoch) + "_" + checkpoints_name)
         if avg_val_loss < val_best_loss:
             val_best_loss = avg_val_loss
             patience_cnt = 0
@@ -232,7 +232,7 @@ def compute_loss_eval(net, data_loader, criterion, device, output_selector):
 
 def store_model(net, optimizer, filename):
     model_state = {"model_state_dict": net.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
-    torch.save(model_state, f"{filename}_best_model.pkl")
+    torch.save(model_state, f"{filename}.pkl")
 
 def evaluate_segmentation_model(net, threshold, dataset):
     device = next(net.parameters()).device
