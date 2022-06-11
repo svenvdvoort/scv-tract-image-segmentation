@@ -2,13 +2,9 @@ import cv2
 import numpy as np
 import os
 import torch
-import torch.nn as nn
-from torchvision.transforms.functional import normalize
-import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from skimage import io, transform
+from skimage import transform
 from scipy.signal import convolve2d
-import random
 
 """ Gets image data from filesystem from id. Returns image, image resolution (tuple: height, width) and pixel size (float). """
 def get_image_data_from_id(id, data_folder):
@@ -369,8 +365,6 @@ def get_all_cases(data_folder):
     for filename in os.listdir(image_folder):
         if filename not in bad:
             out.append(filename + "_")
-    #random.seed(42)
-    #random.shuffle(out)
     return out
 
 # https://www.codespeedy.com/how-to-create-a-stopwatch-in-python/

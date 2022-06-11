@@ -2,6 +2,7 @@
 data/
 model_data/*.pkl
 .ipynb_checkpoints
+.DS_Store
 
 # Python ignores (source: https://github.com/github/gitignore/blob/main/Python.gitignore)
 
