@@ -144,5 +144,13 @@ class TestMRISegmentationDataset(unittest.TestCase):
         assert (sample_mask == sample_mask_norm).all()
         assert (sample_image != sample_mask_norm).any()
 
+    def test_badcases(self):
+        all_cases = get_all_cases("data")
+        print(len(all_cases))
+
+
+
+
+
 if __name__ == '__main__':
     unittest.main()

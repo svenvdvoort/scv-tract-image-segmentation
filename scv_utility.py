@@ -359,7 +359,12 @@ def get_all_cases(data_folder):
     bad = ["case129", "case133",  "case134", "case145", "case148", "case116",
            "case114", "case113", "case110", "case102", "case89", "case85",
            "case78", "case49", "case41", "case131", "case36", "case19",
-           "case18", "case16", "case11", "case9", "case6"]
+           "case18", "case16", "case11", "case9", "case6",
+           "case66", "case67", "case32", "case92", "case156",
+           "case2", "case142", "case74", "case77", "case139",
+           "case15", "case91", "case63", "case65", "case53",
+           "case140", "case90", "case147", "case101", "case7",
+           "case55", "case40", "case47"]
     image_folder = f"{data_folder}/train/"
     out = []
     for filename in os.listdir(image_folder):
