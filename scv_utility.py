@@ -27,6 +27,24 @@ def get_image_data_from_id(id, data_folder):
 class MRIClassificationDataset(Dataset):
     """MRI dataset."""
 
+    def preprocess(data):
+        """ 
+            This method takes a df of the ground-truth segmentation csv file and processes it such that the 
+            segmentation information is over different columns. I.e. one column per organ. 
+        """
+        stomachs = data[data["class"] == "stomach"] \
+            .rename(columns={"segmentation": "stomach_segmentation"}) \
+            .drop(columns=["class"])
+        sbowels = data[data["class"] == "small_bowel"] \
+            .rename(columns={"segmentation": "small_bowel_segmentation"}) \
+            .drop(columns=["class"])
+        lbowels = data[data["class"] == "large_bowel"] \
+            .rename(columns={"segmentation": "large_bowel_segmentation"}) \
+            .drop(columns=["class"])
+
+        alltogether = stomachs.merge(sbowels, on="id", how='outer').merge(lbowels, on="id", how='outer')
+        return alltogether
+
     def __init__(self, data_dir, labels, transform=None):
         """
         Args:
@@ -35,7 +53,7 @@ class MRIClassificationDataset(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on an image.
         """
-        self.labels = labels.to_dict(orient="list")
+        self.labels = MRIClassificationDataset.preprocess(labels).to_dict(orient="list")
         self.data_dir = data_dir
         self.transform = transform
 
@@ -47,20 +65,32 @@ class MRIClassificationDataset(Dataset):
             idx = idx.tolist()
 
         id_string = self.labels['id'][idx]
-        image, _, _ = get_image_data_from_id(id_string, self.data_dir)
+        image, image_resolution, _ = get_image_data_from_id(id_string, self.data_dir)
 
+        # Necessary to work with existing transforms...
+        stomach_segmentation_rle = self.labels['stomach_segmentation'][idx]
+        stomach_segmentation_mask = MRISegmentationDataset.convert_segmentation(stomach_segmentation_rle, image_resolution)
+        small_bowel_segmentation_rle = self.labels['small_bowel_segmentation'][idx]
+        small_bowel_segmentation_mask = MRISegmentationDataset.convert_segmentation(small_bowel_segmentation_rle, image_resolution)
+        large_bowel_segmentation_rle = self.labels['large_bowel_segmentation'][idx]
+        large_bowel_segmentation_mask = MRISegmentationDataset.convert_segmentation(large_bowel_segmentation_rle, image_resolution)
 
         if self.transform:
-            sample = {'image': image}
+            sample = {'image': image,
+                      'segmentation_stomach': stomach_segmentation_mask,
+                      'segmentation_small_bowel': large_bowel_segmentation_mask,
+                      'segmentation_large_bowel': small_bowel_segmentation_mask, }
             transformed_sample = self.transform(sample)
             image = transformed_sample['image']
 
-        segmentation_rle = self.labels['segmentation'][idx]
-        target = 0 if segmentation_rle == "" else 1
-
         image = image[np.newaxis, ...].astype("float32") # add color dimension
-        target = np.array([target], dtype="float32")
+        target = np.array([
+            0 if stomach_segmentation_rle == "" else 1,
+            0 if small_bowel_segmentation_rle == "" else 1,
+            0 if large_bowel_segmentation_rle == "" else 1,
+            ], dtype="float32")
         return image, target
+
 
 class MRISegmentationDataset(Dataset):
     """MRI dataset."""
