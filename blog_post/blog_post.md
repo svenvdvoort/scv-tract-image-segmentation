@@ -16,15 +16,11 @@ The dataset consists of (anonymized) data from 85 patients where each patient ha
 
 ![Example of an MRI slice from the dataset. Right: Ground truth segmentations projected on the MRI slice as colored masks.](images/figure1.png)
 
-Figure 1: Left: Example of an MRI slice from the dataset. Right: Ground truth segmentations projected on the MRI slice as colored masks.
-
 **Bad cases and dataset splits**
 
 Unfortunately, the dataset was not entirely ready to use. During data exploration, we found some bad cases. An example is given in Figure 2. These cases were manually filtered out. Recall that the dataset consists of 85 patients. Each patient has 1 to 6 days of scans, and each day contains 144 slices. We found that a bad slice means that all slices on that day are bad and in most cases all scans of this patient are of poor quality. Hence, if a patient has at least one day of bad scans, the whole patient is filtered out. This procedure decreased the dataset size from 85 to 39 patients. Leveraging the information that is still hidden in these bad cases is left for future work.
 
 ![Left: Example of a bad MRI slice from the dataset. Right: Ground truth segmentations projected on the MRI slice as colored masks.](images/figure2.png)
-
-Figure 2: Left: Example of a bad MRI slice from the dataset. Right: Ground truth segmentations projected on the MRI slice as colored masks.
 
 Furthermore, the dataset needed to be split into training-, testing-, and validation sets. To reduce the possibility of overfitting, the splits are done on patients, and not on days or slices. The size of the training-, testing-, and validation sets are 29, 5 and 5 patients respectively. Ideally, evaluation should be done using k-fold-crossvalidation however due to time constraints and compute power availability this was not feasible. Instead two random train/test/validation splits were manually selected. All experiments were run on both dataset splits. These two values can give us an indication of how much variation can be expected if the experiments were to be repeated.
 
@@ -40,13 +36,9 @@ Initially we experimented with a [U-Net](https://arxiv.org/abs/1505.04597) archi
 
 ![Example MRI slice (left) and corresponding prediction of trained U-Net model prediction (right). The network simply crops and slightly deforms the center of the input image and does not perform segmentation.](images/figure3.png)
 
-Figure 3: Example MRI slice (left) and corresponding prediction of trained U-Net model prediction (right). The network simply crops and slightly deforms the center of the input image and does not perform segmentation.
-
 The network architecture actually used for segmentation is a [Fully Convolutional Network](http://arxiv.org/abs/1605.06211) with a ResNet-50 [ResNet](http://arxiv.org/abs/1512.03385) backend. A Fully Convolutional Network uses a successful existing classification architecture but uses convolutional layers rather than fully connected layers as the final layers in the network (see figure 4). The Fully Convolutional Network architecture therefore builds on the strengths of the existing classification architecture and adapts it for segmentation. The model implementation was loaded from the [PyTorch model hub](https://pytorch.org/hub/pytorch_vision_fcn_resnet101/) without pre-trained weights and three output channels (corresponding to the three classes in the dataset).
 
 ![An illustration of the Fully Convolutional Network architecture. The first layers are similar to a classification model, but the final convolutional layers allow for segmentation rather than classification. (Shelhamer, E., Long, J. and Darrell, T., 2022. Fully Convolutional Networks for Semantic Segmentation.)](images/figure4.png)
-
-Figure 4: An illustration of the Fully Convolutional Network architecture. The first layers are similar to a classification model, but the final convolutional layers allow for segmentation rather than classification. (Shelhamer, E., Long, J. and Darrell, T., 2022. Fully Convolutional Networks for Semantic Segmentation.)
 
 ## Results
 
@@ -57,8 +49,6 @@ Training was done on two setups; the data for which the slices with empty ground
 
 ![Left: The learning curves for the model trained on the data for which the ground truth is non-empty. Right: The learning curves for the model trained on all data.](images/figure5.png)
 
-Figure 5: Left: The learning curves for the model trained on the data for which the ground truth is non-empty. Right: The learning curves for the model trained on all data.
-
 **Evaluation**
 At last the models were evaluated using the mean Dice coefficient. This measure computes the pixel-wise overlap between predicted segmentation and its respective ground truth and ranges from 0 to 1. A score of 1 corresponds to a perfect overlap of prediction and ground truth. If both masks are empty, the Dice coefficient is defined to be 0. This evaluation metric is also used by Kaggle in combination with a 3D Hausdorff to determine the final performance of the entered submissions.
 For the evaluation we use a sigmoid on the final layer of our network to squash its output. We iterated over different thresholds and computed the Dice coefficient on the validation data. The threshold at 0.4 attained the best performance and consequently was used for further testing.
@@ -67,13 +57,9 @@ For illustrative purposes, some example segmentations are reported. The examples
 
 ![Examples of good segmentations on unseen data in the test set.](images/figure6.png)
 
-Figure 6: Examples of good segmentations on unseen data in the test set.
-
 Unfortunately, not all slices from the test set are as good. Figure 7 below shows examples of bad cases. Especially the first two cases, where vital organs are missed, could have serious consequences if this model were to be actually used in the medical domain without a medical expert supervising the outputs of the model. These cases illustrate why future work is essential. Although the segmentation on the third example is far from perfect, it does successfully serve the purpose of indicating areas that need to be avoided by the radiotherapy.
 
 ![Examples of bad segmentations on unseen data in the test set.](images/figure7.png)
-
-Figure 7: Examples of bad segmentations on unseen data in the test set.
 
 In table 1 we report the results attained when training and evaluating on the full dataset (all gt) and the dataset of only slices with segmentations present (non-empty gt).
 The first model was both trained and evaluated on non-empty ground truth and corresponds to a network that is only used to segment MRI scans with vulnerable organs present. This model attained a mean Dice coefficient of 0.6345 which shows that the network is capable of correctly segmenting these organs. This setting, however, is not realistic as the majority of the slices of the MRI will require no segmentation. The second row of this table presents the performance of this model trained on realistic data and it comes to no surprise that the performance is much worse. 
@@ -94,13 +80,9 @@ Table 1 shows the networks trained on all data including empty slices performs b
 
 ![Schematic overview of two-stage network where a classification network first decides if there is anything to segment present, if this is the case a segmentation network outputs the actual segmentation. The segmentation network is only trained on MRI scans with a segmentation and performs better than a network trained on the full dataset.](images/figure8.png)
 
-Figure 8: Schematic overview of two-stage network where a classification network first decides if there is anything to segment present, if this is the case a segmentation network outputs the actual segmentation. The segmentation network is only trained on MRI scans with a segmentation and performs better than a network trained on the full dataset.
-
 We attempted to train a classification model to do the first-stage selection using the [PyTorch Hub ResNet50 implementation](https://pytorch.org/hub/nvidia_deeplearningexamples_resnet50/) appended with a linear 1000 to 3 layer, the Adam optimizer and Binary Cross Entropy with logits loss. We tried several learning rates 0.001, 0.0001 and 0.00001 but none allowed the network to generalize. This can also be seen in the learning curves in figure 9. Evaluation of the trained classification networks shows that the network has either recall of 1.0 or precision of 1.0, indicating that the network simply classifies everything as positive or negative. Due to time limitations we did not investigate these issues further and leave the idea for a two-stage network here for future research.
 
 ![Learning curve of training the classification network. The validation and test loss do not go down, indicating the network doesn’t learn to generalize.](images/figure9.png)
-
-Figure 9: Learning curve of training the classification network. The validation and test loss do not go down, indicating the network doesn’t learn to generalize.
 
 ## Conclusions and future work
 
